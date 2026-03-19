@@ -133,7 +133,7 @@ Minimum confidence threshold: **0.6** — LLM stances with confidence below 0.6 
 ### Paper Trading Engine
 
 - Starting capital: configurable (default $100,000 virtual)
-- **Position sizing formula:** `shares = (portfolio_value × 0.02) / (entry_price × 0.05)` — this risks exactly 2% of portfolio assuming the -5% stop-loss is hit. The 10% max allocation cap is applied after this formula: `dollar_value = min(shares × entry_price, portfolio_value × 0.10)`. When the cap clips a position below the formula result, the stated 2% risk no longer holds — this is acceptable and noted; the cap is a safety floor, not a risk target.
+- **Position sizing:** The formula `shares = (portfolio_value × 0.02) / (entry_price × 0.05)` always produces a position worth ~40% of portfolio before capping. The 10% max allocation cap is always binding. **Effective rule: position size = 10% of portfolio value.** Effective stop-loss risk per position = 0.5% of portfolio (not 2%). The formula is retained for documentation of the original risk-based intent.
 - Order type: market orders simulated at next-day open price
 - Max open positions: 20 (limits UI/cognitive load, not a risk constraint — cash availability is the binding risk constraint)
 - Max single asset allocation: 10% of portfolio (hard cap, applied after sizing formula)
@@ -153,7 +153,7 @@ All state saved to `trader/state/trader.db`:
 - `portfolio` — current cash, positions, P&L
 - `thesis` — latest LLM thesis per asset (timestamp, stance, confidence, reasoning)
 - `trades` — full trade log
-- `snapshots` — daily portfolio value for equity curve
+- `snapshots` — daily portfolio value for equity curve. Snapshot is written immediately after all daily orders are applied (4:30 PM ET), representing end-of-day portfolio value.
 
 On restart, state is loaded from SQLite. No data loss on process restart. Schema migrations are applied automatically at startup via numbered scripts in `state/migrations/`. Breaking schema changes in future versions require running a migration script; v1 schema is fixed.
 
@@ -164,7 +164,7 @@ On restart, state is loaded from SQLite. No data loss on process restart. Schema
 - Input: asset list, date range, starting capital
 - **Point-in-time data:** Fundamentals (P/E, revenue, debt) are fetched as reported values using only data available before each simulated date. Financials updated quarterly — backtest uses the most recent filing date prior to simulation date. News filtered by publication timestamp.
 - ML model trained strictly on data before `backtest_start_date` before the run begins
-- **LLM in backtest:** The live Claude MCP endpoint IS called during backtest (one call per asset per simulated week). Responses are cached to `backtest/llm_cache/{run_id}/{asset}_{week}.json` so re-runs of the same backtest are deterministic and fast. A backtest over 2 years × 10 assets = ~1,040 LLM calls on first run; subsequent runs use cache.
+- **LLM in backtest:** The live Claude MCP endpoint IS called during backtest (one call per asset per simulated week). Responses are cached to `backtest/llm_cache/{run_id}/{asset}_{week}.json` where `week` is the ISO date string of the Monday that started that simulated week (e.g., `2024-01-08`). Re-runs of the same backtest are deterministic and fast via cache. A backtest over 2 years × 10 assets = ~1,040 LLM calls on first run; subsequent runs use cache.
 - Steps through time day-by-day; weekly boundary triggers LLM thesis re-run on historical snapshot
 - **Output metrics:**
   - Total return (%)
@@ -180,7 +180,7 @@ On restart, state is loaded from SQLite. No data loss on process restart. Schema
 All times in **US/Eastern** timezone:
 - **Sunday 11:00 PM ET** — weekly ML model retraining (runs regardless of holidays)
 - **Monday 8:00 AM ET** — weekly LLM thesis run. If Monday is a US market holiday, the thesis run is skipped; the previous week's thesis remains active until the next Monday.
-- **Daily 4:30 PM ET** (weekdays, non-holidays for equities) — daily ML signal run + paper trade execution. Crypto runs daily including holidays and weekends.
+- **Daily 4:30 PM ET** — the daily job runs **seven days a week**. On weekends and equity holidays, only crypto assets are processed. On weekdays (non-holidays), all asset classes are processed.
 - **Stop-loss enforcement** is checked once daily at 4:30 PM ET using closing prices. Intraday gaps (including overnight crypto moves) are accepted as a known limitation — positions may gap through the stop-loss level.
 - **Missed run:** If a scheduled run is missed (process was down), it runs immediately on next startup; does not attempt to replay missed days
 
