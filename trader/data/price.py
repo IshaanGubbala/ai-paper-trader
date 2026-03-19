@@ -3,17 +3,31 @@ import pandas as pd
 from datetime import date, timedelta
 
 
+_CRYPTO_SUFFIX = "-USD"   # yfinance: BTC → BTC-USD
+_FOREX_SUFFIX  = "=X"    # yfinance: EURUSD → EURUSD=X
+
+
+def _yf_symbol(symbol: str, asset_type: str) -> str:
+    """Map internal symbol to the format yfinance expects."""
+    if asset_type == "crypto" and not symbol.endswith(_CRYPTO_SUFFIX):
+        return symbol + _CRYPTO_SUFFIX
+    if asset_type == "forex" and not symbol.endswith("=X"):
+        return symbol + _FOREX_SUFFIX
+    return symbol
+
+
 def get_ohlcv(symbol: str, asset_type: str, days: int = 365 * 2) -> pd.DataFrame:
     """Return daily OHLCV DataFrame sorted by date."""
     from openbb import obb
     start = (date.today() - timedelta(days=days)).isoformat()
+    yf_sym = _yf_symbol(symbol, asset_type)
     try:
         if asset_type == "equity":
-            result = obb.equity.price.historical(symbol, start=start, provider="yfinance")
+            result = obb.equity.price.historical(yf_sym, start=start, provider="yfinance")
         elif asset_type == "crypto":
-            result = obb.crypto.price.historical(symbol, start=start, provider="yfinance")
+            result = obb.crypto.price.historical(yf_sym, start=start, provider="yfinance")
         elif asset_type == "forex":
-            result = obb.currency.price.historical(symbol, start=start, provider="yfinance")
+            result = obb.currency.price.historical(yf_sym, start=start, provider="yfinance")
         else:
             raise ValueError(f"Unknown asset type: {asset_type}")
     except Exception as e:
