@@ -1,22 +1,22 @@
-"""Claude thesis client — uses Anthropic SDK directly."""
+"""OpenAI thesis client — uses openai SDK directly."""
 import json
 import logging
 import re
 from pathlib import Path
 
-import anthropic
+from openai import OpenAI
 
-from trader.config import ANTHROPIC_MODEL, BACKTEST_CACHE_DIR
+from trader.config import OPENAI_MODEL, BACKTEST_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
-_client: anthropic.Anthropic | None = None
+_client: OpenAI | None = None
 
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+        _client = OpenAI()  # reads OPENAI_API_KEY from env
     return _client
 
 
@@ -71,7 +71,7 @@ def get_thesis(
     cache_key: str | None = None,
 ) -> dict:
     """
-    Generate a trading thesis for an asset via Claude.
+    Generate a trading thesis for an asset via OpenAI.
     cache_key: if set, cache response to disk (for backtest reproducibility).
     Returns thesis dict: asset, stance, confidence, reasoning, horizon.
     """
@@ -97,32 +97,28 @@ def get_thesis(
     thesis = None
     try:
         client = _get_client()
-        response = client.messages.create(
-            model=ANTHROPIC_MODEL,
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
             max_tokens=512,
             messages=[{"role": "user", "content": prompt}],
         )
-        raw = response.content[0].text
+        raw = response.choices[0].message.content or ""
         thesis = _parse_thesis(raw, asset)
 
         # Retry once if parse failed
         if thesis["confidence"] == 0.0 and thesis["stance"] == "neutral" and "Parse failed" in thesis["reasoning"]:
             correction = f"Your previous response could not be parsed as JSON. {prompt}"
-            response2 = client.messages.create(
-                model=ANTHROPIC_MODEL,
+            response2 = client.chat.completions.create(
+                model=OPENAI_MODEL,
                 max_tokens=512,
                 messages=[{"role": "user", "content": correction}],
             )
-            thesis = _parse_thesis(response2.content[0].text, asset)
+            thesis = _parse_thesis(response2.choices[0].message.content or "", asset)
 
-    except anthropic.APIError as e:
-        logger.error(f"[{asset}] Anthropic API error: {e}")
+    except Exception as e:
+        logger.error(f"[{asset}] OpenAI API error: {e}")
         thesis = {"asset": asset, "stance": "neutral", "confidence": 0.0,
                   "reasoning": f"API error: {e}", "horizon": "unknown"}
-    except Exception as e:
-        logger.error(f"[{asset}] Unexpected error in get_thesis: {e}")
-        thesis = {"asset": asset, "stance": "neutral", "confidence": 0.0,
-                  "reasoning": f"Error: {e}", "horizon": "unknown"}
 
     # Write cache
     if cache_key and thesis:

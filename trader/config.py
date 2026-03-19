@@ -2,8 +2,8 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 
-# Anthropic
-ANTHROPIC_MODEL = "claude-haiku-4-5"  # cheap (~$0.002/week for 8 assets)
+# OpenAI
+OPENAI_MODEL = "gpt-4o-mini"  # cheap (~$0.001/week for 8 assets)
 
 # OpenBB MCP (data tools only — NOT used for LLM inference)
 OPENBB_MCP_URL = "http://127.0.0.1:8001/mcp"
