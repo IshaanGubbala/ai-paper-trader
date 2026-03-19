@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+conda/
+
+# Trader runtime artifacts
+trader/state/data/
+trader/models/
+trader/logs/
+trader/backtest/llm_cache/
+
+# Secrets / keys
+.env
+.env.*
+user_settings.json
+backends.json
+
+# DB files
+*.db
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints/
+Jupyter/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Streamlit
+.streamlit/
