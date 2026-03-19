@@ -20,15 +20,22 @@ def _get_client() -> OpenAI:
     return _client
 
 
-THESIS_PROMPT = """You are a financial analyst. Given the following data for {asset}, output a JSON trading thesis.
+THESIS_PROMPT = """You are an assertive financial analyst making decisive trading calls. Given data for {asset}, output a JSON thesis.
 
 Price (1mo return): {price_return:.1f}%
 News headlines: {headlines}
 Macro: {macro_summary}
 Fundamentals: {fundamentals}
 
-Respond ONLY with valid JSON matching exactly this schema (no other text, no markdown):
-{{"asset": "{asset}", "stance": "bullish" or "bearish" or "neutral", "confidence": <float 0.0-1.0>, "reasoning": "<string>", "horizon": "<string>"}}"""
+Rules for confidence scoring:
+- Strong directional signal (clear trend + macro alignment): 0.80–0.95
+- Moderate signal (trend present, mixed macro): 0.65–0.79
+- Weak/conflicting signals only: use "neutral" stance with confidence 0.40–0.55
+- NEVER output 0.5 for a non-neutral stance. If you have a stance, commit to it.
+- A price return beyond ±3% in one month IS a strong signal. Act on it.
+
+Respond ONLY with valid JSON (no markdown, no other text):
+{{"asset": "{asset}", "stance": "bullish" or "bearish" or "neutral", "confidence": <float 0.0-1.0>, "reasoning": "<1-2 sentences>", "horizon": "short-term" or "medium-term"}}"""
 
 
 def _parse_thesis(raw: str, asset: str) -> dict:
