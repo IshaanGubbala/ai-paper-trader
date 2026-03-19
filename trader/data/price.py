@@ -1,4 +1,4 @@
-"""Fetch OHLCV history via OpenBB SDK."""
+"""Fetch OHLCV history via yfinance (direct) for reliability."""
 import pandas as pd
 from datetime import date, timedelta
 
@@ -18,25 +18,29 @@ def _yf_symbol(symbol: str, asset_type: str) -> str:
 
 def get_ohlcv(symbol: str, asset_type: str, days: int = 365 * 2) -> pd.DataFrame:
     """Return daily OHLCV DataFrame sorted by date."""
-    from openbb import obb
+    import yfinance as yf
     start = (date.today() - timedelta(days=days)).isoformat()
     yf_sym = _yf_symbol(symbol, asset_type)
     try:
-        if asset_type == "equity":
-            result = obb.equity.price.historical(yf_sym, start=start, provider="yfinance")
-        elif asset_type == "crypto":
-            result = obb.crypto.price.historical(yf_sym, start=start, provider="yfinance")
-        elif asset_type == "forex":
-            result = obb.currency.price.historical(yf_sym, start=start, provider="yfinance")
-        else:
-            raise ValueError(f"Unknown asset type: {asset_type}")
+        df = yf.download(yf_sym, start=start, progress=False, auto_adjust=True)
     except Exception as e:
         raise RuntimeError(f"Failed to fetch OHLCV for {symbol}: {e}") from e
 
-    df = result.to_df().reset_index()
-    df.columns = [c.lower() for c in df.columns]
+    if df.empty:
+        raise RuntimeError(f"Failed to fetch OHLCV for {symbol}: empty result")
+
+    df = df.reset_index()
+    # yfinance returns MultiIndex columns when downloading single ticker — flatten
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [c[0].lower() if c[1] == "" or c[1] == yf_sym else c[0].lower()
+                      for c in df.columns]
+    else:
+        df.columns = [c.lower() for c in df.columns]
+
+    df = df.rename(columns={"datetime": "date"})
     needed = [c for c in ["date", "open", "high", "low", "close", "volume"] if c in df.columns]
     df = df[needed].sort_values("date").reset_index(drop=True)
+    df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
     return df
 
 
